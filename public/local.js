@@ -41,7 +41,7 @@ export function createLocalBackend(emit) {
     try {
       if (!(await ensureEngine())) throw new Error('no engine');
       const moves = play.game.history({ verbose: true }).map(uciOf);
-      let r = await play.engine.search({ moves, go: LEVELS[play.level], timeoutMs: 20000 });
+      let r = await play.engine.search({ moves, go: play.go || LEVELS[play.level], timeoutMs: 20000 });
       if (epoch !== play.epoch) return;
       let mv = MOVE_RE.test(r.best ?? '') ? mvTry(play.game, r.best) : null;
       if (!mv) {
@@ -59,9 +59,10 @@ export function createLocalBackend(emit) {
     }
   }
 
-  async function newGame({ color, level, style }) {
+  async function newGame({ color, level, style, movetimeMs }) {
     play.epoch++;
     play.level = Number.isInteger(level) && LEVELS[level] ? level : 3;
+    play.go = Number.isInteger(movetimeMs) && movetimeMs >= 50 ? `movetime ${movetimeMs}` : LEVELS[play.level];
     play.humanColor = color === 'b' ? 'b' : color === 'w' ? 'w' : Math.random() < 0.5 ? 'w' : 'b';
     play.game = new Chess(); play.over = null; play.lastEval = null; play.busy = false;
     if (play.engine) { play.engine.kill(); play.engine = null; }   // 탐색 중일 수 있는 워커를 확실히 정리

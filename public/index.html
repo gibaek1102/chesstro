@@ -47,8 +47,17 @@
               <option value="4" data-i18n="lv4">4 · 0.3초</option>
               <option value="5" data-i18n="lv5">5 · 1초</option>
               <option value="6" data-i18n="lv6">6 · 3초</option>
+              <option value="c" data-i18n="lvc">직접 입력</option>
             </select>
           </label>
+          <div class="row" id="p-custom" hidden>
+            <input id="p-time" type="number" min="1" step="1" value="1" style="width:6em">
+            <select id="p-unit">
+              <option value="ms">ms</option>
+              <option value="s" selected>초</option>
+              <option value="min">분</option>
+            </select>
+          </div>
           <label><span data-i18n="style">스타일</span>
             <select id="p-style">
               <option value="a" data-i18n="st_a">공격적</option>
