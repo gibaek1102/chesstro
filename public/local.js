@@ -41,7 +41,9 @@ export function createLocalBackend(emit) {
     try {
       if (!(await ensureEngine())) throw new Error('no engine');
       const moves = play.game.history({ verbose: true }).map(uciOf);
-      let r = await play.engine.search({ moves, go: play.go || LEVELS[play.level], timeoutMs: 20000 });
+      const mt = /^movetime (\d+)/.exec(play.go || '');
+      const limit = mt ? Math.max(20000, Number(mt[1]) + 15000) : 20000;
+      let r = await play.engine.search({ moves, go: play.go || LEVELS[play.level], timeoutMs: limit });
       if (epoch !== play.epoch) return;
       let mv = MOVE_RE.test(r.best ?? '') ? mvTry(play.game, r.best) : null;
       if (!mv) {
