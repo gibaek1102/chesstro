@@ -9,7 +9,7 @@ let backend = null;
 // ===================== i18n =====================
 const T = {
   ko: {
-    tab_play: '대국', tab_live: '라이브 자가대국', color: '색', white: '백', black: '흑', random: '랜덤', level: '난이도', style: '스타일', st_a: '공격적', st_m: '중간', st_d: '수비적',
+    tab_play: '대국', tab_live: '라이브 자가대국', color: '색', white: '백', black: '흑', random: '랜덤', level: '난이도', thinktime: '생각시간', style: '스타일', st_a: '공격적', st_m: '중간', st_d: '수비적',
     lv1: '1 · 입문', lv2: '2 · 쉬움', lv3: '3 · 보통', lv4: '4 · 0.3초', lv5: '5 · 1초', lv6: '6 · 3초', lvc: '직접 입력',
     newgame: '새 게임', undo: '무르기', flip: '판 뒤집기', btn_resign: '기권', golive: '● 라이브', recent: '최근 대국',
     pgn: 'PGN 내려받기 (최근 2MB)', foot: 'Terranion는 직접 학습한 NNUE 평가 함수를 쓰는 UCI 체스 엔진입니다.',
@@ -23,7 +23,7 @@ const T = {
     local_note: '이 브라우저 안에서 돌아가는 자가대국입니다. 탭을 떠나면 멈춰요.', rand_open: '시작 국면은 다양성을 위한 무작위 오프닝입니다 (수 번호는 그 국면부터).', your_color_w: '백', your_color_b: '흑', eval_label: '평가',
   },
   en: {
-    tab_play: 'Play', tab_live: 'Live self-play', color: 'Color', white: 'White', black: 'Black', random: 'Random', level: 'Level', style: 'Style', st_a: 'Aggressive', st_m: 'Balanced', st_d: 'Defensive',
+    tab_play: 'Play', tab_live: 'Live self-play', color: 'Color', white: 'White', black: 'Black', random: 'Random', level: 'Level', thinktime: 'Think time', style: 'Style', st_a: 'Aggressive', st_m: 'Balanced', st_d: 'Defensive',
     lv1: '1 · Beginner', lv2: '2 · Easy', lv3: '3 · Normal', lv4: '4 · 0.3s', lv5: '5 · 1s', lv6: '6 · 3s',
     lvc: 'Custom',
     newgame: 'New game', undo: 'Take back', flip: 'Flip board', btn_resign: 'Resign', golive: '● Live', recent: 'Recent games',
@@ -204,14 +204,11 @@ function customMs() {
   const k = { ms: 1, s: 1000, min: 60000 }[$('p-unit').value] || 1000;
   return Math.min(600000, Math.max(50, Math.round(n * k)));
 }
-$('p-level').onchange = () => { $('p-custom').hidden = $('p-level').value !== 'c'; };
 
 $('p-new').onclick = () => {
   if (!wsOpen) return;
   play.pendingNew = true; play.closedByServer = false;
-  const lv = $('p-level').value;
-  const msg = { type: 'new', color: $('p-color').value === 'r' ? 'random' : $('p-color').value, level: lv === 'c' ? 3 : +lv, style: $('p-style').value };
-  if (lv === 'c') msg.movetimeMs = customMs();
+  const msg = { type: 'new', color: $('p-color').value === 'r' ? 'random' : $('p-color').value, level: 3, style: $('p-style').value, movetimeMs: customMs() };
   send(msg);
 };
 $('p-undo').onclick = () => send({ type: 'undo' });
