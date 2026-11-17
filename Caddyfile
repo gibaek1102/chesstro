@@ -1,0 +1,4 @@
+chess.ericlee.dev {
+	encode gzip
+	reverse_proxy terranion:3000
+}
