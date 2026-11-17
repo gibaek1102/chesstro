@@ -1,6 +1,6 @@
 import { Chess } from './vendor/chess.js';
-import { Board } from './board.js';
-import { createLocalBackend } from './local.js';
+import { Board } from './board.js?v=2';
+import { createLocalBackend } from './local.js?v=2';
 
 // 서버 없이 브라우저(WASM)에서 실행하는 모드: config.js 가 켜거나, 주소에 ?local 을 붙이면 켜진다.
 const LOCAL = window.TERRANION_LOCAL === true || new URLSearchParams(location.search).has('local');

@@ -1,7 +1,7 @@
 // 서버 없이 브라우저 안에서 동작하는 백엔드. server/play.js + server/selfplay.js 의 브라우저 버전이다.
 // app.js 와는 WebSocket 때와 같은 메시지(state / live / stats ...)로 대화한다.
 import { Chess } from './vendor/chess.js';
-import { LocalEngine, MOVE_RE } from './local-engine.js';
+import { LocalEngine, MOVE_RE } from './local-engine.js?v=2';
 
 const LEVELS = { 1: 'nodes 30', 2: 'nodes 300', 3: 'nodes 3000', 4: 'movetime 300', 5: 'movetime 1000', 6: 'movetime 3000' };
 const SELF_MOVETIME = 120, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'terranion-local-stats-v1';
