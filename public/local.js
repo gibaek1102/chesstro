@@ -1,9 +1,10 @@
 // 서버 없이 브라우저 안에서 동작하는 백엔드. server/play.js + server/selfplay.js 의 브라우저 버전이다.
 // app.js 와는 WebSocket 때와 같은 메시지(state / live / stats ...)로 대화한다.
 import { Chess } from './vendor/chess.js';
-import { LocalEngine, MOVE_RE } from './local-engine.js?v=4';
+import { LocalEngine, MOVE_RE } from './local-engine.js?v=5';
 
 const clampMs = (v, max) => Math.max(20, Math.min(max, Math.round(+v) || 1000));
+const ENGINE_NAME = { terranion: 'Terranion 1.4', lunaris: 'Lunaris 1.2.1' };
 const SELF_MOVETIME = 300, SELF_PACE = 1500, GAME_PAUSE = 4000, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'lunaris-local-stats-v1';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const uciOf = (m) => m.from + m.to + (m.promotion ?? '');
@@ -109,7 +110,7 @@ export function createLocalBackend(emit) {
 
   // ------------------------ 자가대국 (라이브 탭을 보는 동안만) ------------------------
   let stats = { games: 0, white: 0, black: 0, draws: 0, plies: 0, adjudicated: 0, since: Date.now(), nodes: 0 };
-  let recent = [], nextId = 1, liveGame = null, selfRunning = false, selfToken = 0, engines = null, openings = null, selfPace = SELF_PACE;
+  let recent = [], nextId = 1, liveGame = null, selfRunning = false, selfToken = 0, engines = null, openings = null, selfPace = SELF_PACE, selfCfg = { white: 'terranion', black: 'lunaris' }, selfMt = 300;
   try {
     const j = JSON.parse(localStorage.getItem(STORE) || 'null');
     if (j) { stats = { ...stats, ...j.stats }; nextId = stats.games + 1; }
@@ -128,7 +129,7 @@ export function createLocalBackend(emit) {
 
   async function playSelfGame(token, white, black, startFen, openingIdx) {
     const game = new Chess(startFen), moves = [], evals = [];
-    const meta = { id: nextId++, ts: Date.now(), white: 'Lunaris', black: 'Lunaris', startFen, opening: openingIdx };
+    const meta = { id: nextId++, ts: Date.now(), white: ENGINE_NAME[white.engine] ?? 'Engine', black: ENGINE_NAME[black.engine] ?? 'Engine', startFen, opening: openingIdx };
     let result = null, reason = null;
     const live = (extra = {}) => { liveGame = { ...meta, moves: [...moves], evals: [...evals], fen: game.fen(), result, reason, ...extra }; emit({ type: 'live', game: liveGame }); };
     white.newGame(); black.newGame(); live();
@@ -136,7 +137,7 @@ export function createLocalBackend(emit) {
       if (token !== selfToken) return;
       if (moves.length >= MAX_PLIES) { result = '1/2-1/2'; reason = 'maxplies'; break; }
       const side = game.turn() === 'w' ? white : black;
-      const t0 = performance.now(), mt = Math.max(50, Math.min(SELF_MOVETIME, selfPace - 100));   // 간격이 짧으면 생각도 짧게
+      const t0 = performance.now(), mt = selfMt;   // 생각시간은 설정값 그대로 (수 간격과 별개)
       const r = await side.search({ startFen, moves, go: `movetime ${mt}`, timeoutMs: mt + 15000 });
       if (token !== selfToken) return;
       const rest = selfPace - (performance.now() - t0);   // 사람이 따라볼 수 있도록 한 수를 최소 SELF_PACE ms 간격으로 보여준다
@@ -171,7 +172,7 @@ export function createLocalBackend(emit) {
     let idx = Math.floor(Math.random() * ops.length), fails = 0;
     while (token === selfToken) {
       try {
-        engines ??= [await new LocalEngine({ hash: 8, engine: 'lunaris' }).start(), await new LocalEngine({ hash: 8, engine: 'lunaris' }).start()];
+        engines ??= [await new LocalEngine({ hash: 8, engine: selfCfg.white }).start(), await new LocalEngine({ hash: 8, engine: selfCfg.black }).start()];
         if (token !== selfToken) break;
         await playSelfGame(token, engines[0], engines[1], ops[idx], idx);
         idx = Math.floor(Math.random() * ops.length); fails = 0;
@@ -217,6 +218,15 @@ export function createLocalBackend(emit) {
         case 'undo': return void undo();
         case 'resign': return void resign();
         case 'self_pace': selfPace = Math.max(100, Math.min(60000, Math.round(+msg.ms) || SELF_PACE)); return;
+        case 'self_cfg': {
+          const ok = (e) => (e === 'terranion' ? 'terranion' : 'lunaris');
+          const next = { white: ok(msg.white), black: ok(msg.black) };
+          const nextMt = Math.max(20, Math.min(3600000, Math.round(+msg.movetime) || 300));
+          const changed = next.white !== selfCfg.white || next.black !== selfCfg.black || nextMt !== selfMt;
+          selfCfg = next; selfMt = nextMt;
+          if (changed && selfRunning) { stopSelf(); startSelf(); }   // 바뀐 설정으로 다시 시작 (진행 중이던 판은 버림)
+          return;
+        }
         case 'sub_live': return startSelf();
         case 'unsub_live': return stopSelf();
       }

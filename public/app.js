@@ -3,7 +3,7 @@ import { Board, setPieceThemes } from './board.js?v=4';
 import { THEMES } from './pieces.js?v=4';
 let ptUnlocked = false, ptSel = { w: 'classic', b: 'classic' };
 try { ptUnlocked = localStorage.getItem('lunaris-unlock') === '1'; ptSel = { ...ptSel, ...JSON.parse(localStorage.getItem('lunaris-ptheme') || '{}') }; } catch {}
-import { createLocalBackend } from './local.js?v=4';
+import { createLocalBackend } from './local.js?v=5';
 
 // 서버 없이 브라우저(WASM)에서 실행하는 모드: config.js 가 켜거나, 주소에 ?local 을 붙이면 켜진다.
 const LOCAL = window.LUNARIS_LOCAL === true || window.TERRANION_LOCAL === true || new URLSearchParams(location.search).has('local');
