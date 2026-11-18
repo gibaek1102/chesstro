@@ -5,7 +5,7 @@ import { LocalEngine, MOVE_RE } from './local-engine.js?v=5';
 
 const clampMs = (v, max) => Math.max(20, Math.min(max, Math.round(+v) || 1000));
 const ENGINE_NAME = { terranion: 'Terranion 1.4', lunaris: 'Lunaris 1.2.1' };
-const SELF_MOVETIME = 300, SELF_PACE = 1500, GAME_PAUSE = 4000, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'lunaris-local-stats-v1';
+const SELF_MOVETIME = 300, SELF_PACE = 1500, GAME_PAUSE = 4000, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'chesstro-local-stats-v1';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const uciOf = (m) => m.from + m.to + (m.promotion ?? '');
 const mvTry = (g, u) => { try { return g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }); } catch { return null; } };
@@ -203,7 +203,7 @@ export function createLocalBackend(emit) {
     return recent.map((gm) => {
       const g = new Chess(gm.startFen);
       gm.moves.forEach((u, i) => { mvTry(g, u); const e = gm.evals[i]; if (e) g.setComment(`${fmtEval(e)}/${e.depth}`); });
-      g.header('Event', 'Lunaris self-play (browser)', 'Site', location.host, 'Round', String(gm.id), 'White', gm.white, 'Black', gm.black, 'Result', gm.result, 'Termination', gm.reason);
+      g.header('Event', 'Chesstro self-play (browser)', 'Site', location.host, 'Round', String(gm.id), 'White', gm.white, 'Black', gm.black, 'Result', gm.result, 'Termination', gm.reason);
       return g.pgn();
     }).join('\n\n');
   }

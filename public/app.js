@@ -2,7 +2,7 @@ import { Chess } from './vendor/chess.js';
 import { Board, setPieceThemes } from './board.js?v=4';
 import { THEMES } from './pieces.js?v=4';
 let ptUnlocked = false, ptSel = { w: 'classic', b: 'classic' };
-try { ptUnlocked = localStorage.getItem('lunaris-unlock') === '1'; ptSel = { ...ptSel, ...JSON.parse(localStorage.getItem('lunaris-ptheme') || '{}') }; } catch {}
+try { ptUnlocked = localStorage.getItem('chesstro-unlock') === '1'; ptSel = { ...ptSel, ...JSON.parse(localStorage.getItem('chesstro-ptheme') || '{}') }; } catch {}
 import { createLocalBackend } from './local.js?v=5';
 
 // 서버 없이 브라우저(WASM)에서 실행하는 모드: config.js 가 켜거나, 주소에 ?local 을 붙이면 켜진다.
@@ -15,12 +15,12 @@ const T = {
     tab_play: '대국', tab_live: '라이브 자가대국', color: '색', engine: '엔진', self_w: '백', self_b: '흑', self_think: '생각시간', white: '백', black: '흑', random: '랜덤', thinktime: '생각 시간', pace: '수 간격', pthemes: '기물 테마', pw: '백', pb: '흑', unlocked: '숨겨진 기물 테마가 열렸습니다', relocked: '기물 테마를 숨겼습니다', classic: '기본',
     lv1: '1 · 입문', lv2: '2 · 쉬움', lv3: '3 · 보통', lv4: '4 · 0.3초', lv5: '5 · 1초', lv6: '6 · 3초',
     newgame: '새 게임', undo: '무르기', flip: '판 뒤집기', btn_resign: '기권', golive: '● 라이브', recent: '최근 대국',
-    pgn: 'PGN 내려받기 (최근 2MB)', foot: 'Lunaris는 직접 학습한 NNUE 평가 함수를 쓰는 UCI 체스 엔진입니다.',
-    you: '나', engine: 'Lunaris', start: '「새 게임」을 눌러 시작하세요.', yourturn: '당신 차례입니다', thinking: 'Lunaris가 생각 중',
+    pgn: 'PGN 내려받기 (최근 2MB)', foot: 'Chesstro는 직접 학습한 NNUE 평가 함수를 쓰는 UCI 체스 엔진(Terranion, Lunaris)을 제공합니다.',
+    you: '나', engine: '엔진', start: '「새 게임」을 눌러 시작하세요.', yourturn: '당신 차례입니다', thinking: '엔진이 생각 중',
     connecting: '서버에 연결하는 중…', busy: '지금 자리가 가득 찼어요. 잠시 후 다시 시도해 주세요.', engine_failed: '엔진에 문제가 생겨 이 수를 다시 계산합니다. 새 게임을 눌러 주세요.',
     idle: '오래 움직임이 없어 연결을 종료했습니다.', reconnecting: '연결이 끊겼습니다. 다시 연결하는 중…',
     r_1_0: '백 승', r_0_1: '흑 승', r_d: '무승부', checkmate: '체크메이트', stalemate: '스테일메이트', repetition: '3회 동형 반복', insufficient: '기물 부족', fifty: '50수 규칙', resign: '기권', adjudication: '판정', maxplies: '수 제한',
-    won: '당신이 이겼습니다!', lost: 'Lunaris가 이겼습니다', depth: '깊이', nodes: '노드', nps: '노드/초', score: '평가', moves_empty: '아직 수가 없습니다',
+    won: '당신이 이겼습니다!', lost: '엔진이 이겼습니다', depth: '깊이', nodes: '노드', nps: '노드/초', score: '평가', moves_empty: '아직 수가 없습니다',
     live_title: 'Lunaris vs Lunaris', game: '게임', ms: 'ms/수', live_wait: '자가대국을 기다리는 중…', replay: '다시보기', following: '실시간', over: '종료',
     st_games: '누적 대국', st_wdl: '백 승 / 무 / 흑 승', st_plies: '평균 길이', st_adj: '판정 종료', st_nodes: '누적 탐색 노드', st_since: '집계 시작', plies: '수',
     local_note: '이 브라우저 안에서 돌아가는 자가대국입니다. 탭을 떠나면 멈춰요.', rand_open: '시작 국면은 다양성을 위한 무작위 오프닝입니다 (수 번호는 그 국면부터).', your_color_w: '백', your_color_b: '흑', eval_label: '평가',
@@ -29,12 +29,12 @@ const T = {
     tab_play: 'Play', tab_live: 'Live self-play', color: 'Color', engine: 'Engine', self_w: 'White', self_b: 'Black', self_think: 'Think time', white: 'White', black: 'Black', random: 'Random', thinktime: 'Think time', pace: 'Move interval', pthemes: 'Piece themes', pw: 'White', pb: 'Black', unlocked: 'Hidden piece themes unlocked', relocked: 'Piece themes hidden', classic: 'Classic',
     lv1: '1 · Beginner', lv2: '2 · Easy', lv3: '3 · Normal', lv4: '4 · 0.3s', lv5: '5 · 1s', lv6: '6 · 3s',
     newgame: 'New game', undo: 'Take back', flip: 'Flip board', btn_resign: 'Resign', golive: '● Live', recent: 'Recent games',
-    pgn: 'Download PGN (last 2 MB)', foot: 'Lunaris is a UCI chess engine with a self-trained NNUE evaluation.',
-    you: 'You', engine: 'Lunaris', start: 'Press “New game” to start.', yourturn: 'Your move', thinking: 'Lunaris is thinking',
+    pgn: 'Download PGN (last 2 MB)', foot: 'Chesstro offers UCI chess engines with self-trained NNUE evaluation (Terranion, Lunaris).',
+    you: 'You', engine: 'Engine', start: 'Press “New game” to start.', yourturn: 'Your move', thinking: 'Engine is thinking',
     connecting: 'Connecting…', busy: 'All seats are taken right now. Please try again shortly.', engine_failed: 'The engine hit a problem. Please start a new game.',
     idle: 'Disconnected after a long period of inactivity.', reconnecting: 'Connection lost. Reconnecting…',
     r_1_0: 'White wins', r_0_1: 'Black wins', r_d: 'Draw', checkmate: 'checkmate', stalemate: 'stalemate', repetition: 'threefold repetition', insufficient: 'insufficient material', fifty: '50-move rule', resign: 'resignation', adjudication: 'adjudication', maxplies: 'move limit',
-    won: 'You won!', lost: 'Lunaris won', depth: 'Depth', nodes: 'Nodes', nps: 'Nodes/s', score: 'Eval', moves_empty: 'No moves yet',
+    won: 'You won!', lost: 'Engine won', depth: 'Depth', nodes: 'Nodes', nps: 'Nodes/s', score: 'Eval', moves_empty: 'No moves yet',
     live_title: 'Lunaris vs Lunaris', game: 'Game', ms: 'ms/move', live_wait: 'Waiting for the self-play game…', replay: 'Replay', following: 'live', over: 'finished',
     st_games: 'Games played', st_wdl: 'White / Draw / Black', st_plies: 'Avg. length', st_adj: 'Adjudicated', st_nodes: 'Total nodes searched', st_since: 'Counting since', plies: 'plies',
     local_note: 'Self-play runs inside your browser and pauses when you leave this tab.', rand_open: 'Games start from random opening positions for variety (move numbers count from there).', your_color_w: 'White', your_color_b: 'Black', eval_label: 'Eval',
@@ -212,18 +212,18 @@ function showSkins() {
   $('skin').innerHTML = SKINS.map((s) => `<option value="${s[0]}">${s[lang === 'ko' ? 1 : 2]}</option>`).join('');
   applySkin(cur);
 }
-$('skin').onchange = () => { applySkin($('skin').value); try { localStorage.setItem('lunaris-skin', $('skin').value); } catch {} };
-try { document.documentElement.dataset.skin = localStorage.getItem('lunaris-skin') || ''; } catch {}
+$('skin').onchange = () => { applySkin($('skin').value); try { localStorage.setItem('chesstro-skin', $('skin').value); } catch {} };
+try { document.documentElement.dataset.skin = localStorage.getItem('chesstro-skin') || ''; } catch {}
 // 테마(사이트 전체): 다크 / 라이트. 스킨(보드 색)과는 따로 고른다.
 function applyTheme(t) { t = t === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; $('theme').textContent = t === 'light' ? '☾' : '☀'; }
-$('theme').onclick = () => { const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; applyTheme(t); try { localStorage.setItem('lunaris-theme', t); } catch {} };
-{ let st = ''; try { st = localStorage.getItem('lunaris-theme') || ''; } catch {} applyTheme(st || document.documentElement.dataset.theme); }
+$('theme').onclick = () => { const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; applyTheme(t); try { localStorage.setItem('chesstro-theme', t); } catch {} };
+{ let st = ''; try { st = localStorage.getItem('chesstro-theme') || ''; } catch {} applyTheme(st || document.documentElement.dataset.theme); }
 // 자가대국 수 간격 (브라우저 모드에서만 보인다)
 const PACES = [200, 500, 1000, 1500, 2000, 3000, 5000, 10000];
 const paceMs = () => +($('l-pace').value || 1500);
 function showPace() {
   let cur = $('l-pace').value;
-  if (!cur) { try { cur = localStorage.getItem('lunaris-pace') || ''; } catch {} }
+  if (!cur) { try { cur = localStorage.getItem('chesstro-pace') || ''; } catch {} }
   $('l-pace').innerHTML = PACES.map((ms) => `<option value="${ms}">${fmtTime(ms)}</option>`).join('');
   $('l-pace').value = PACES.includes(+cur) ? String(cur) : '1500';
   $('l-pace-val').textContent = fmtTime(paceMs());
@@ -231,7 +231,7 @@ function showPace() {
 }
 $('l-pace').onchange = () => {
   $('l-pace-val').textContent = fmtTime(paceMs());
-  try { localStorage.setItem('lunaris-pace', $('l-pace').value); } catch {}
+  try { localStorage.setItem('chesstro-pace', $('l-pace').value); } catch {}
   if (LOCAL) send({ type: 'self_pace', ms: paceMs() });
 };
 // 라이브 자가대국 설정: 백/흑 엔진 + 생각시간 (브라우저 모드)
@@ -239,11 +239,11 @@ const UNIT_MS = { ms: 1, s: 1000, min: 60000 };
 const selfMs = () => { const v = parseFloat($('l-time').value) || 120; return Math.max(20, Math.min(3600000, Math.round(v * (UNIT_MS[$('l-unit').value] || 1)))); };
 const selfCfgMsg = () => ({ type: 'self_cfg', white: $('l-white').value, black: $('l-black').value, movetime: selfMs() });
 function saveSelfCfg() {
-  try { localStorage.setItem('lunaris-self-cfg', JSON.stringify({ w: $('l-white').value, b: $('l-black').value, v: $('l-time').value, u: $('l-unit').value })); } catch {}
+  try { localStorage.setItem('chesstro-self-cfg', JSON.stringify({ w: $('l-white').value, b: $('l-black').value, v: $('l-time').value, u: $('l-unit').value })); } catch {}
 }
 (function restoreSelfCfg() {
   try {
-    const s = JSON.parse(localStorage.getItem('lunaris-self-cfg') || 'null');
+    const s = JSON.parse(localStorage.getItem('chesstro-self-cfg') || 'null');
     if (s) { $('l-white').value = s.w; $('l-black').value = s.b; $('l-time').value = s.v; $('l-unit').value = s.u; }
   } catch {}
 })();
@@ -270,9 +270,9 @@ function showTime() {
   [...$('p-unit').options].forEach((o, i) => { o.textContent = UNIT_LABEL[lang][i]; });
   $('p-time-val').textContent = fmtTime(thinkMs());
 }
-const saveTime = () => { try { localStorage.setItem('lunaris-time-v2', JSON.stringify({ v: $('p-time').value, u: $('p-unit').value })); } catch {} };
+const saveTime = () => { try { localStorage.setItem('chesstro-time-v2', JSON.stringify({ v: $('p-time').value, u: $('p-unit').value })); } catch {} };
 try {
-  const sv = JSON.parse(localStorage.getItem('lunaris-time-v2') || 'null');
+  const sv = JSON.parse(localStorage.getItem('chesstro-time-v2') || 'null');
   if (sv && [...$('p-unit').options].some((o) => o.value === String(sv.u)) && parseFloat(sv.v) > 0) { $('p-time').value = sv.v; $('p-unit').value = String(sv.u); }
 } catch {}
 let lastUnit = +$('p-unit').value;   // 직전에 선택된 단위 (단위 변경 시 환산용)
@@ -342,7 +342,7 @@ function renderLive() {
   const ongoing = !gm.result;
   const over = gm.result ? `${resultText(gm.result)} · ${reasonText(gm.reason)}` : '';
   const evLine = ev ? `<div class="dim">${t('score')} <b style="color:var(--text)">${evalText(ev)}</b> · ${t('depth')} ${ev.depth}</div>` : '';
-  head.innerHTML = `<div class="t">${t('live_title')}</div><div class="dim">${t('game')} #${gm.id} · ${lv.replayId !== null ? t('replay') : ongoing ? t('following') : t('over')}${over ? ' · ' + over : ''}</div>${evLine}<div class="dim" style="font-size:12px;margin-top:4px">${t('rand_open')}${LOCAL ? ' ' + t('local_note') : ''}</div>`;
+  head.innerHTML = `<div class="t">${gm.white} vs ${gm.black}</div><div class="dim">${t('game')} #${gm.id} · ${lv.replayId !== null ? t('replay') : ongoing ? t('following') : t('over')}${over ? ' · ' + over : ''}</div>${evLine}<div class="dim" style="font-size:12px;margin-top:4px">${t('rand_open')}${LOCAL ? ' ' + t('local_note') : ''}</div>`;
   $('l-top').innerHTML = `<b>${gm.black}</b><span>${t('black')}</span>`;
   $('l-bot').innerHTML = `<b>${gm.white}</b><span>${t('white')}</span>`;
   renderMoves($('l-moves'), lv.sans, lv.ply, (p) => { lv.ply = p; lv.follow = false; renderLive(); });
@@ -418,11 +418,11 @@ applyLang();
 connect();
 showTab(location.hash === '#live' ? 'live' : 'play');
 if (LOCAL) {
-  $('ver').textContent = 'Lunaris 1.2.1 · NNUE · WASM';
+  $('ver').textContent = 'Terranion 1.4 · Lunaris 1.2.1 · NNUE · WASM';
   $('l-pgn').addEventListener('click', (e) => {
     e.preventDefault();
     const url = URL.createObjectURL(new Blob([backend.pgn()], { type: 'application/x-chess-pgn' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'lunaris-selfplay.pgn'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'chesstro-selfplay.pgn'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   });
 } else fetch('./api/stats').then((r) => r.json()).then((j) => { if (j.engine) $('ver').textContent = j.engine + ' · NNUE'; }).catch(() => {});
@@ -440,13 +440,13 @@ function showPT() {
   $('pt-w').value = ptSel.w; $('pt-b').value = ptSel.b;
   applyPT();
 }
-for (const s of ['w', 'b']) $('pt-' + s).onchange = () => { ptSel[s] = $('pt-' + s).value; try { localStorage.setItem('lunaris-ptheme', JSON.stringify(ptSel)); } catch {} applyPT(); };
+for (const s of ['w', 'b']) $('pt-' + s).onchange = () => { ptSel[s] = $('pt-' + s).value; try { localStorage.setItem('chesstro-ptheme', JSON.stringify(ptSel)); } catch {} applyPT(); };
 let logoClicks = 0, logoTimer = null;
 $('logo').onclick = () => {
   logoClicks++; clearTimeout(logoTimer); logoTimer = setTimeout(() => { logoClicks = 0; }, 1500);
   if (logoClicks < 5) return;
   logoClicks = 0; ptUnlocked = !ptUnlocked;
-  try { localStorage.setItem('lunaris-unlock', ptUnlocked ? '1' : '0'); } catch {}
+  try { localStorage.setItem('chesstro-unlock', ptUnlocked ? '1' : '0'); } catch {}
   applyPT(); showToast(t(ptUnlocked ? 'unlocked' : 'relocked')); setTimeout(() => showToast(''), 2200);
 };
 showPT();
