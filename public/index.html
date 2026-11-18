@@ -93,6 +93,30 @@
       <div class="card" id="l-head"></div>
       <div class="card" id="l-pace-card">
         <div class="row">
+          <label><span data-i18n="self_w">백</span>
+            <select id="l-white">
+              <option value="terranion" selected>Terranion 1.4</option>
+              <option value="lunaris">Lunaris 1.2.1</option>
+            </select>
+          </label>
+          <label><span data-i18n="self_b">흑</span>
+            <select id="l-black">
+              <option value="terranion">Terranion 1.4</option>
+              <option value="lunaris" selected>Lunaris 1.2.1</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="self_think">생각시간</span>
+            <input id="l-time" type="number" min="1" step="1" value="120" style="width:6em">
+            <select id="l-unit">
+              <option value="ms" selected>ms</option>
+              <option value="s">초</option>
+              <option value="min">분</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
           <label><span><span data-i18n="pace">수 간격</span>: <b id="l-pace-val"></b></span>
             <select id="l-pace"></select>
           </label>
