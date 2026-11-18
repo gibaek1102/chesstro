@@ -1,21 +1,22 @@
 // 서버 없이 브라우저 안에서 동작하는 백엔드. server/play.js + server/selfplay.js 의 브라우저 버전이다.
 // app.js 와는 WebSocket 때와 같은 메시지(state / live / stats ...)로 대화한다.
 import { Chess } from './vendor/chess.js';
-import { LocalEngine, MOVE_RE } from './local-engine.js?v=3';
+import { LocalEngine, MOVE_RE } from './local-engine.js?v=4';
 
-const LEVELS = { 1: 'nodes 30', 2: 'nodes 300', 3: 'nodes 3000', 4: 'movetime 300', 5: 'movetime 1000', 6: 'movetime 3000' };
-const SELF_MOVETIME = 120, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'terranion-local-stats-v1';
+const clampMs = (v, max) => Math.max(20, Math.min(max, Math.round(+v) || 1000));
+const SELF_MOVETIME = 300, SELF_PACE = 1500, GAME_PAUSE = 4000, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'lunaris-local-stats-v1';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const uciOf = (m) => m.from + m.to + (m.promotion ?? '');
 const mvTry = (g, u) => { try { return g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }); } catch { return null; } };
 const fmtEval = (e) => (e.mate !== null ? `#${e.mate}` : ((e.cp >= 0 ? '+' : '') + (e.cp / 100).toFixed(2)));
 
 export function createLocalBackend(emit) {
   // ------------------------ 사람 대국 ------------------------
-  const play = { engine: null, engineId: 'terranion', game: new Chess(), humanColor: 'w', level: 3, busy: false, over: null, epoch: 0, lastEval: null };
+  const play = { engine: null, engineId: 'lunaris', game: new Chess(), humanColor: 'w', movetime: 1000, busy: false, over: null, epoch: 0, lastEval: null };
 
   const state = () => ({
     type: 'state', moves: play.game.history({ verbose: true }).map(uciOf), fen: play.game.fen(),
-    humanColor: play.humanColor, level: play.level, thinking: play.busy, over: play.over, eval: play.lastEval,
+    humanColor: play.humanColor, movetime: play.movetime, thinking: play.busy, over: play.over, eval: play.lastEval,
   });
 
   async function ensureEngine() {
@@ -40,11 +41,18 @@ export function createLocalBackend(emit) {
     const epoch = play.epoch;
     play.busy = true; emit(state());
     try {
-      if (!(await ensureEngine())) throw new Error('no engine');
       const moves = play.game.history({ verbose: true }).map(uciOf);
-      const mt = /^movetime (\d+)/.exec(play.go || '');
-      const limit = mt ? Math.max(20000, Number(mt[1]) + 15000) : 20000;
-      let r = await play.engine.search({ moves, go: play.go || LEVELS[play.level], timeoutMs: limit });
+      let r = null;
+      for (let attempt = 0; attempt < 3 && !r; attempt++) {   // 엔진이 죽으면 새 워커로 다시 시도한다
+        try {
+          if (!(await ensureEngine())) throw new Error('no engine');
+          r = await play.engine.search({ moves, go: 'movetime ' + play.movetime, timeoutMs: play.movetime + 20000 });
+        } catch (e) {
+          if (epoch !== play.epoch) return;
+          play.engine?.kill(); play.engine = null;
+          if (attempt === 2) throw e;
+        }
+      }
       if (epoch !== play.epoch) return;
       let mv = MOVE_RE.test(r.best ?? '') ? mvTry(play.game, r.best) : null;
       if (!mv) {
@@ -62,16 +70,14 @@ export function createLocalBackend(emit) {
     }
   }
 
-  async function newGame({ color, level, style, movetimeMs, engine }) {
+  async function newGame({ color, movetime, engine }) {
+    play.engineId = engine === 'terranion' ? 'terranion' : 'lunaris';
     play.epoch++;
-    play.engineId = engine === 'lunaris' ? 'lunaris' : 'terranion';
-    play.level = Number.isInteger(level) && LEVELS[level] ? level : 3;
-    play.go = Number.isInteger(movetimeMs) && movetimeMs >= 50 ? `movetime ${movetimeMs}` : LEVELS[play.level];
+    play.movetime = clampMs(movetime, 3600000);
     play.humanColor = color === 'b' ? 'b' : color === 'w' ? 'w' : Math.random() < 0.5 ? 'w' : 'b';
     play.game = new Chess(); play.over = null; play.lastEval = null; play.busy = false;
     if (play.engine) { play.engine.kill(); play.engine = null; }   // 탐색 중일 수 있는 워커를 확실히 정리
     if (!(await ensureEngine())) { emit({ type: 'error', code: 'engine_failed' }); return emit(state()); }
-    if (play.engineId === 'terranion') play.engine.send(`setoption name Style value ${{ a: 'Aggressive', d: 'Defensive' }[style] || 'Balanced'}`);
     play.engine.newGame();
     emit(state());
     if (play.game.turn() !== play.humanColor) await engineMove();
@@ -85,7 +91,7 @@ export function createLocalBackend(emit) {
   }
 
   async function undo() {
-    if (play.busy || !play.engine) return;
+    if (play.busy) return;
     if (play.game.history().length === 0) return;
     play.over = null; play.game.undo();
     if (play.game.turn() !== play.humanColor && play.game.history().length > 0) play.game.undo();
@@ -103,7 +109,7 @@ export function createLocalBackend(emit) {
 
   // ------------------------ 자가대국 (라이브 탭을 보는 동안만) ------------------------
   let stats = { games: 0, white: 0, black: 0, draws: 0, plies: 0, adjudicated: 0, since: Date.now(), nodes: 0 };
-  let recent = [], nextId = 1, liveGame = null, selfRunning = false, selfToken = 0, engines = null, openings = null;
+  let recent = [], nextId = 1, liveGame = null, selfRunning = false, selfToken = 0, engines = null, openings = null, selfPace = SELF_PACE;
   try {
     const j = JSON.parse(localStorage.getItem(STORE) || 'null');
     if (j) { stats = { ...stats, ...j.stats }; nextId = stats.games + 1; }
@@ -122,7 +128,7 @@ export function createLocalBackend(emit) {
 
   async function playSelfGame(token, white, black, startFen, openingIdx) {
     const game = new Chess(startFen), moves = [], evals = [];
-    const meta = { id: nextId++, ts: Date.now(), white: 'Terranion', black: 'Terranion', startFen, opening: openingIdx };
+    const meta = { id: nextId++, ts: Date.now(), white: 'Lunaris', black: 'Lunaris', startFen, opening: openingIdx };
     let result = null, reason = null;
     const live = (extra = {}) => { liveGame = { ...meta, moves: [...moves], evals: [...evals], fen: game.fen(), result, reason, ...extra }; emit({ type: 'live', game: liveGame }); };
     white.newGame(); black.newGame(); live();
@@ -130,8 +136,11 @@ export function createLocalBackend(emit) {
       if (token !== selfToken) return;
       if (moves.length >= MAX_PLIES) { result = '1/2-1/2'; reason = 'maxplies'; break; }
       const side = game.turn() === 'w' ? white : black;
-      const r = await side.search({ startFen, moves, go: `movetime ${SELF_MOVETIME}`, timeoutMs: SELF_MOVETIME + 15000 });
+      const t0 = performance.now(), mt = Math.max(50, Math.min(SELF_MOVETIME, selfPace - 100));   // 간격이 짧으면 생각도 짧게
+      const r = await side.search({ startFen, moves, go: `movetime ${mt}`, timeoutMs: mt + 15000 });
       if (token !== selfToken) return;
+      const rest = selfPace - (performance.now() - t0);   // 사람이 따라볼 수 있도록 한 수를 최소 SELF_PACE ms 간격으로 보여준다
+      if (rest > 0) { await sleep(rest); if (token !== selfToken) return; }
       if (!MOVE_RE.test(r.best ?? '')) throw new Error('bad bestmove');
       const mv = mvTry(game, r.best);
       if (!mv) throw new Error('illegal bestmove');
@@ -162,10 +171,11 @@ export function createLocalBackend(emit) {
     let idx = Math.floor(Math.random() * ops.length), fails = 0;
     while (token === selfToken) {
       try {
-        engines ??= [await new LocalEngine({ hash: 8 }).start(), await new LocalEngine({ hash: 8 }).start()];
+        engines ??= [await new LocalEngine({ hash: 8, engine: 'lunaris' }).start(), await new LocalEngine({ hash: 8, engine: 'lunaris' }).start()];
         if (token !== selfToken) break;
         await playSelfGame(token, engines[0], engines[1], ops[idx], idx);
         idx = Math.floor(Math.random() * ops.length); fails = 0;
+        if (token === selfToken) await sleep(GAME_PAUSE);   // 끝난 판의 결과를 잠깐 보여준다
       } catch {
         if (token !== selfToken) break;
         engines?.forEach((e) => e.kill()); engines = null;
@@ -192,7 +202,7 @@ export function createLocalBackend(emit) {
     return recent.map((gm) => {
       const g = new Chess(gm.startFen);
       gm.moves.forEach((u, i) => { mvTry(g, u); const e = gm.evals[i]; if (e) g.setComment(`${fmtEval(e)}/${e.depth}`); });
-      g.header('Event', 'Terranion self-play (browser)', 'Site', location.host, 'Round', String(gm.id), 'White', gm.white, 'Black', gm.black, 'Result', gm.result, 'Termination', gm.reason);
+      g.header('Event', 'Lunaris self-play (browser)', 'Site', location.host, 'Round', String(gm.id), 'White', gm.white, 'Black', gm.black, 'Result', gm.result, 'Termination', gm.reason);
       return g.pgn();
     }).join('\n\n');
   }
@@ -206,6 +216,7 @@ export function createLocalBackend(emit) {
         case 'move': return void humanMove(msg);
         case 'undo': return void undo();
         case 'resign': return void resign();
+        case 'self_pace': selfPace = Math.max(100, Math.min(60000, Math.round(+msg.ms) || SELF_PACE)); return;
         case 'sub_live': return startSelf();
         case 'unsub_live': return stopSelf();
       }

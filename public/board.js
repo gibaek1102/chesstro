@@ -1,6 +1,26 @@
 // 의존성 없는 SVG 체스판. 클릭 이동 + 드래그 이동.
+import { pieceArt, pieceSvgHtml } from './pieces.js';
+// 백/흑 기물 테마 ('classic' = 글리프). 모든 판이 공유하며, 바뀌면 등록된 판을 다시 그린다.
+const PT = { w: 'classic', b: 'classic' }; const BOARDS = new Set();
+export function setPieceThemes(w, b) { PT.w = w || 'classic'; PT.b = b || 'classic'; for (const bd of BOARDS) bd.render(); }
 const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };   // 채워진 글리프를 색만 바꿔 사용
 const FILES = 'abcdefgh';
+const FONT = '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", "Apple Symbols", sans-serif';   // style.css 의 .pc 와 같아야 함
+let METRICS = null;
+// 글꼴마다 기물 글리프의 크기와 위치가 다르다. 실제로 그려지는 영역을 재서 칸 중앙에 맞춘다.
+function metrics() {
+  if (METRICS) return METRICS;
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = `100px ${FONT}`;
+  const m = {}; let maxDim = 1;
+  for (const k in GLYPH) {
+    const r = ctx.measureText(GLYPH[k] + '\uFE0E');
+    m[k] = { a: r.actualBoundingBoxAscent, d: r.actualBoundingBoxDescent, l: r.actualBoundingBoxLeft, r: r.actualBoundingBoxRight };
+    maxDim = Math.max(maxDim, m[k].a + m[k].d, m[k].l + m[k].r);
+  }
+  METRICS = maxDim > 20 ? { m, scale: 8.2 / maxDim } : { m: null, scale: 0.082 };   // 가장 큰 기물이 칸의 82%
+  return METRICS;
+}
 
 export class Board {
   // opts.legalTargets(sq) -> [{to, promo:boolean}]   opts.onMove({from,to,promotion})
@@ -20,6 +40,7 @@ export class Board {
     this.promoEl = document.createElement('div');
     this.promoEl.className = 'promo hidden';
     root.appendChild(this.promoEl);
+    BOARDS.add(this);
     this.render();
   }
 
@@ -76,16 +97,27 @@ export class Board {
     for (const [sq, p] of this.pieces) {
       if (this.drag && this.drag.from === sq) continue;
       const [x, y] = this.xy(sq);
-      g.appendChild(this.pieceEl(p, x + 5, y + 6.6, 8.2));
+      g.appendChild(this.pieceEl(p, x + 5, y + 5));
     }
-    if (this.drag) g.appendChild(this.pieceEl(this.drag.piece, this.drag.x, this.drag.y + 1.6, 8.8, 'drag'));
+    if (this.drag) g.appendChild(this.pieceEl(this.drag.piece, this.drag.x, this.drag.y + 1.6, 'drag'));
     this.svg.replaceChildren(g);
   }
 
-  pieceEl(p, cx, cy, size, extra = '') {
+  pieceEl(p, cx, cy, extra = '') {   // (cx, cy) = 기물이 놓일 칸의 중앙
     const white = p === p.toUpperCase();
+    const art = PT[white ? 'w' : 'b'] !== 'classic' && pieceArt(PT[white ? 'w' : 'b'], p);
+    if (art) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'), s = 10.4 / 45;
+      g.setAttribute('transform', `translate(${cx - 22.5 * s} ${cy - 22.5 * s}) scale(${s})`);
+      g.setAttribute('class', 'pcv pc-v ' + extra); g.setAttribute('style', art.style + ';pointer-events:none');
+      g.innerHTML = art.markup;
+      return g;
+    }
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    t.setAttribute('x', cx); t.setAttribute('y', cy); t.setAttribute('text-anchor', 'middle');
+    const { m, scale } = metrics(), g = m && m[p.toLowerCase()], size = 100 * scale;
+    t.setAttribute('x', g ? cx - ((g.r - g.l) * scale) / 2 : cx);
+    t.setAttribute('y', g ? cy + ((g.a - g.d) * scale) / 2 : cy + size * 0.35);
+    t.setAttribute('text-anchor', g ? 'start' : 'middle');
     t.setAttribute('font-size', size); t.setAttribute('class', `pc ${white ? 'pw' : 'pb'} ${extra}`);
     t.textContent = GLYPH[p.toLowerCase()] + '︎';   // 텍스트 글리프로 강제 (이모지 방지)
     return t;
@@ -140,8 +172,9 @@ export class Board {
     this.promoEl.replaceChildren();
     for (const p of ['q', 'r', 'b', 'n']) {
       const b = document.createElement('button');
-      b.className = 'promo-btn ' + (white ? 'pw' : 'pb');
-      b.textContent = GLYPH[p] + '︎';
+      const th = PT[white ? 'w' : 'b'], k = white ? p.toUpperCase() : p;
+      if (th !== 'classic' && pieceArt(th, k)) { b.className = 'promo-btn has-art'; b.innerHTML = pieceSvgHtml(th, k, 50); }
+      else { b.className = 'promo-btn ' + (white ? 'pw' : 'pb'); b.textContent = GLYPH[p] + '︎'; }
       b.onclick = () => { this.hidePromo(); this.opts.onMove?.({ from, to, promotion: p }); };
       this.promoEl.appendChild(b);
     }

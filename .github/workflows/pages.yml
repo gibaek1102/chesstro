@@ -42,7 +42,7 @@ jobs:
 
       - name: Switch site to in-browser mode
         run: |
-          echo "window.TERRANION_LOCAL = true;" > dist/config.js
+          echo "window.LUNARIS_LOCAL = true; window.TERRANION_LOCAL = true;" > dist/config.js
           touch dist/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3

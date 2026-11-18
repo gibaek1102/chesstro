@@ -1,39 +1,41 @@
 import { Chess } from './vendor/chess.js';
-import { Board } from './board.js?v=2';
-import { createLocalBackend } from './local.js?v=3';
+import { Board, setPieceThemes } from './board.js?v=4';
+import { THEMES } from './pieces.js?v=4';
+let ptUnlocked = false, ptSel = { w: 'classic', b: 'classic' };
+try { ptUnlocked = localStorage.getItem('lunaris-unlock') === '1'; ptSel = { ...ptSel, ...JSON.parse(localStorage.getItem('lunaris-ptheme') || '{}') }; } catch {}
+import { createLocalBackend } from './local.js?v=4';
 
 // 서버 없이 브라우저(WASM)에서 실행하는 모드: config.js 가 켜거나, 주소에 ?local 을 붙이면 켜진다.
-const LOCAL = window.TERRANION_LOCAL === true || new URLSearchParams(location.search).has('local');
+const LOCAL = window.LUNARIS_LOCAL === true || window.TERRANION_LOCAL === true || new URLSearchParams(location.search).has('local');
 let backend = null;
 
 // ===================== i18n =====================
 const T = {
   ko: {
-    tab_play: '대국', tab_live: '라이브 자가대국', color: '색', white: '백', black: '흑', random: '랜덤', level: '난이도', thinktime: '생각시간', engine: '엔진', style: '스타일', st_a: '공격적', st_m: '중간', st_d: '수비적',
-    lv1: '1 · 입문', lv2: '2 · 쉬움', lv3: '3 · 보통', lv4: '4 · 0.3초', lv5: '5 · 1초', lv6: '6 · 3초', lvc: '직접 입력',
+    tab_play: '대국', tab_live: '라이브 자가대국', color: '색', engine: '엔진', white: '백', black: '흑', random: '랜덤', thinktime: '생각 시간', pace: '수 간격', pthemes: '기물 테마', pw: '백', pb: '흑', unlocked: '숨겨진 기물 테마가 열렸습니다', relocked: '기물 테마를 숨겼습니다', classic: '기본',
+    lv1: '1 · 입문', lv2: '2 · 쉬움', lv3: '3 · 보통', lv4: '4 · 0.3초', lv5: '5 · 1초', lv6: '6 · 3초',
     newgame: '새 게임', undo: '무르기', flip: '판 뒤집기', btn_resign: '기권', golive: '● 라이브', recent: '최근 대국',
-    pgn: 'PGN 내려받기 (최근 2MB)', foot: 'Terranion는 직접 학습한 NNUE 평가 함수를 쓰는 UCI 체스 엔진입니다.',
-    you: '나', engine: 'Terranion', start: '「새 게임」을 눌러 시작하세요.', yourturn: '당신 차례입니다', thinking: 'Terranion가 생각 중',
+    pgn: 'PGN 내려받기 (최근 2MB)', foot: 'Lunaris는 직접 학습한 NNUE 평가 함수를 쓰는 UCI 체스 엔진입니다.',
+    you: '나', engine: 'Lunaris', start: '「새 게임」을 눌러 시작하세요.', yourturn: '당신 차례입니다', thinking: 'Lunaris가 생각 중',
     connecting: '서버에 연결하는 중…', busy: '지금 자리가 가득 찼어요. 잠시 후 다시 시도해 주세요.', engine_failed: '엔진에 문제가 생겨 이 수를 다시 계산합니다. 새 게임을 눌러 주세요.',
     idle: '오래 움직임이 없어 연결을 종료했습니다.', reconnecting: '연결이 끊겼습니다. 다시 연결하는 중…',
     r_1_0: '백 승', r_0_1: '흑 승', r_d: '무승부', checkmate: '체크메이트', stalemate: '스테일메이트', repetition: '3회 동형 반복', insufficient: '기물 부족', fifty: '50수 규칙', resign: '기권', adjudication: '판정', maxplies: '수 제한',
-    won: '당신이 이겼습니다!', lost: 'Terranion가 이겼습니다', depth: '깊이', nodes: '노드', nps: '노드/초', score: '평가', moves_empty: '아직 수가 없습니다',
-    live_title: 'Terranion vs Terranion', game: '게임', ms: 'ms/수', live_wait: '자가대국을 기다리는 중…', replay: '다시보기', following: '실시간', over: '종료',
+    won: '당신이 이겼습니다!', lost: 'Lunaris가 이겼습니다', depth: '깊이', nodes: '노드', nps: '노드/초', score: '평가', moves_empty: '아직 수가 없습니다',
+    live_title: 'Lunaris vs Lunaris', game: '게임', ms: 'ms/수', live_wait: '자가대국을 기다리는 중…', replay: '다시보기', following: '실시간', over: '종료',
     st_games: '누적 대국', st_wdl: '백 승 / 무 / 흑 승', st_plies: '평균 길이', st_adj: '판정 종료', st_nodes: '누적 탐색 노드', st_since: '집계 시작', plies: '수',
     local_note: '이 브라우저 안에서 돌아가는 자가대국입니다. 탭을 떠나면 멈춰요.', rand_open: '시작 국면은 다양성을 위한 무작위 오프닝입니다 (수 번호는 그 국면부터).', your_color_w: '백', your_color_b: '흑', eval_label: '평가',
   },
   en: {
-    tab_play: 'Play', tab_live: 'Live self-play', color: 'Color', white: 'White', black: 'Black', random: 'Random', level: 'Level', thinktime: 'Think time', engine: 'Engine', style: 'Style', st_a: 'Aggressive', st_m: 'Balanced', st_d: 'Defensive',
+    tab_play: 'Play', tab_live: 'Live self-play', color: 'Color', engine: 'Engine', white: 'White', black: 'Black', random: 'Random', thinktime: 'Think time', pace: 'Move interval', pthemes: 'Piece themes', pw: 'White', pb: 'Black', unlocked: 'Hidden piece themes unlocked', relocked: 'Piece themes hidden', classic: 'Classic',
     lv1: '1 · Beginner', lv2: '2 · Easy', lv3: '3 · Normal', lv4: '4 · 0.3s', lv5: '5 · 1s', lv6: '6 · 3s',
-    lvc: 'Custom',
     newgame: 'New game', undo: 'Take back', flip: 'Flip board', btn_resign: 'Resign', golive: '● Live', recent: 'Recent games',
-    pgn: 'Download PGN (last 2 MB)', foot: 'Terranion is a UCI chess engine with a self-trained NNUE evaluation.',
-    you: 'You', engine: 'Terranion', start: 'Press “New game” to start.', yourturn: 'Your move', thinking: 'Terranion is thinking',
+    pgn: 'Download PGN (last 2 MB)', foot: 'Lunaris is a UCI chess engine with a self-trained NNUE evaluation.',
+    you: 'You', engine: 'Lunaris', start: 'Press “New game” to start.', yourturn: 'Your move', thinking: 'Lunaris is thinking',
     connecting: 'Connecting…', busy: 'All seats are taken right now. Please try again shortly.', engine_failed: 'The engine hit a problem. Please start a new game.',
     idle: 'Disconnected after a long period of inactivity.', reconnecting: 'Connection lost. Reconnecting…',
     r_1_0: 'White wins', r_0_1: 'Black wins', r_d: 'Draw', checkmate: 'checkmate', stalemate: 'stalemate', repetition: 'threefold repetition', insufficient: 'insufficient material', fifty: '50-move rule', resign: 'resignation', adjudication: 'adjudication', maxplies: 'move limit',
-    won: 'You won!', lost: 'Terranion won', depth: 'Depth', nodes: 'Nodes', nps: 'Nodes/s', score: 'Eval', moves_empty: 'No moves yet',
-    live_title: 'Terranion vs Terranion', game: 'Game', ms: 'ms/move', live_wait: 'Waiting for the self-play game…', replay: 'Replay', following: 'live', over: 'finished',
+    won: 'You won!', lost: 'Lunaris won', depth: 'Depth', nodes: 'Nodes', nps: 'Nodes/s', score: 'Eval', moves_empty: 'No moves yet',
+    live_title: 'Lunaris vs Lunaris', game: 'Game', ms: 'ms/move', live_wait: 'Waiting for the self-play game…', replay: 'Replay', following: 'live', over: 'finished',
     st_games: 'Games played', st_wdl: 'White / Draw / Black', st_plies: 'Avg. length', st_adj: 'Adjudicated', st_nodes: 'Total nodes searched', st_since: 'Counting since', plies: 'plies',
     local_note: 'Self-play runs inside your browser and pauses when you leave this tab.', rand_open: 'Games start from random opening positions for variety (move numbers count from there).', your_color_w: 'White', your_color_b: 'Black', eval_label: 'Eval',
   },
@@ -45,7 +47,7 @@ function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach((e) => { e.textContent = t(e.dataset.i18n); });
   $('lang').textContent = lang === 'ko' ? 'EN' : '한';
-  renderPlay(); renderLive();
+  renderPlay(); renderLive(); showTime(); showSkins(); showPace(); showPT();
 }
 const $ = (id) => document.getElementById(id);
 const fmtN = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n));
@@ -157,7 +159,7 @@ function onPlayState(s) {
   const g = new Chess();
   for (const u of s.moves) { try { applyUci(g, u); } catch { break; } }
   play.game = g;
-  play.humanColor = s.humanColor; play.level = s.level;
+  play.humanColor = s.humanColor;
   play.thinking = s.thinking; play.over = s.over; play.eval = s.eval; play.started = true;
   play.lastMove = s.moves.at(-1) ?? null;
   if (play.pendingNew) { pBoard.flipped = s.humanColor === 'b'; play.pendingNew = false; }
@@ -198,18 +200,89 @@ function renderPlay() {
   $('p-resign').disabled = !play.started || !!play.over;
 }
 
-// 직접 입력한 생각시간을 밀리초로 바꾼다. 범위: 50ms ~ 10분
-function customMs() {
-  const n = Number($('p-time').value) || 1;
-  const k = { ms: 1, s: 1000, min: 60000 }[$('p-unit').value] || 1000;
-  return Math.min(600000, Math.max(50, Math.round(n * k)));
+// 스킨: <html data-skin="..."> 으로 style.css 의 색 변수를 바꾼다. 선택은 이 브라우저에 저장된다.
+const SKINS = [['classic', '기본', 'Classic'], ['wood', '우드', 'Wood'], ['ice', '아이스', 'Ice'], ['midnight', '미드나잇', 'Midnight'], ['aqua', '아쿠아', 'Aqua']];
+function applySkin(id) {
+  if (!SKINS.some((s) => s[0] === id)) id = 'classic';
+  if (id === 'classic') delete document.documentElement.dataset.skin; else document.documentElement.dataset.skin = id;
+  $('skin').value = id;
 }
-
+function showSkins() {
+  const cur = $('skin').value || document.documentElement.dataset.skin || 'classic';
+  $('skin').innerHTML = SKINS.map((s) => `<option value="${s[0]}">${s[lang === 'ko' ? 1 : 2]}</option>`).join('');
+  applySkin(cur);
+}
+$('skin').onchange = () => { applySkin($('skin').value); try { localStorage.setItem('lunaris-skin', $('skin').value); } catch {} };
+try { document.documentElement.dataset.skin = localStorage.getItem('lunaris-skin') || ''; } catch {}
+// 테마(사이트 전체): 다크 / 라이트. 스킨(보드 색)과는 따로 고른다.
+function applyTheme(t) { t = t === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; $('theme').textContent = t === 'light' ? '☾' : '☀'; }
+$('theme').onclick = () => { const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; applyTheme(t); try { localStorage.setItem('lunaris-theme', t); } catch {} };
+{ let st = ''; try { st = localStorage.getItem('lunaris-theme') || ''; } catch {} applyTheme(st || document.documentElement.dataset.theme); }
+// 자가대국 수 간격 (브라우저 모드에서만 보인다)
+const PACES = [200, 500, 1000, 1500, 2000, 3000, 5000, 10000];
+const paceMs = () => +($('l-pace').value || 1500);
+function showPace() {
+  let cur = $('l-pace').value;
+  if (!cur) { try { cur = localStorage.getItem('lunaris-pace') || ''; } catch {} }
+  $('l-pace').innerHTML = PACES.map((ms) => `<option value="${ms}">${fmtTime(ms)}</option>`).join('');
+  $('l-pace').value = PACES.includes(+cur) ? String(cur) : '1500';
+  $('l-pace-val').textContent = fmtTime(paceMs());
+  $('l-pace-card').classList.toggle('hidden', !LOCAL);
+}
+$('l-pace').onchange = () => {
+  $('l-pace-val').textContent = fmtTime(paceMs());
+  try { localStorage.setItem('lunaris-pace', $('l-pace').value); } catch {}
+  if (LOCAL) send({ type: 'self_pace', ms: paceMs() });
+};
+// 생각 시간: 숫자 + 단위(ms / 초 / 분). 최소 20ms, 최대 60분. 서버 모드에서는 서버가 상한(기본 10초)으로 제한한다.
+const MIN_MS = 20, MAX_MS = 3600000;
+const UNIT_LABEL = { ko: ['ms', '초', '분'], en: ['ms', 's', 'min'] };
+function thinkMs() {
+  const v = parseFloat($('p-time').value);
+  if (!(v > 0)) return 1000;
+  return Math.max(MIN_MS, Math.min(MAX_MS, Math.round(v * +$('p-unit').value)));
+}
+function fmtTime(ms) {
+  const ko = lang === 'ko';
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60000) return `${+(ms / 1000).toFixed(3)} ${ko ? '초' : 's'}`;
+  const m = Math.floor(ms / 60000), sec = Math.round((ms % 60000) / 1000);
+  return ko ? `${m}분${sec ? ` ${sec}초` : ''}` : `${m} min${sec ? ` ${sec} s` : ''}`;
+}
+function showTime() {
+  [...$('p-unit').options].forEach((o, i) => { o.textContent = UNIT_LABEL[lang][i]; });
+  $('p-time-val').textContent = fmtTime(thinkMs());
+}
+const saveTime = () => { try { localStorage.setItem('lunaris-time-v2', JSON.stringify({ v: $('p-time').value, u: $('p-unit').value })); } catch {} };
+try {
+  const sv = JSON.parse(localStorage.getItem('lunaris-time-v2') || 'null');
+  if (sv && [...$('p-unit').options].some((o) => o.value === String(sv.u)) && parseFloat(sv.v) > 0) { $('p-time').value = sv.v; $('p-unit').value = String(sv.u); }
+} catch {}
+let lastUnit = +$('p-unit').value;   // 직전에 선택된 단위 (단위 변경 시 환산용)
+// ms 값을 입력칸에 채운다. 현재 단위로 정확히 표현되지 않으면 맞는 단위(ms/초/분)로 바꾼다.
+function setFromMs(ms, unit) {
+  const exact = (u) => Math.round(+(ms / u).toFixed(6) * u) === ms && ms / u >= 0.001;
+  if (!exact(unit)) unit = ms < 1000 ? 1 : ms < 60000 ? 1000 : 60000;
+  lastUnit = unit; $('p-unit').value = String(unit);
+  $('p-time').value = String(+(ms / unit).toFixed(6));
+}
+const clampMsVal = (ms) => Math.max(MIN_MS, Math.min(MAX_MS, Math.round(ms)));
+$('p-time').oninput = showTime;
+$('p-time').onchange = () => {   // 범위 밖/빈 값은 보정 (빈 값·0 은 1초)
+  const v = parseFloat($('p-time').value);
+  if (v > 0) setFromMs(clampMsVal(v * lastUnit), lastUnit); else setFromMs(1000, 1000);
+  showTime(); saveTime();
+};
+$('p-unit').onchange = () => {   // 단위를 바꾸면 같은 시간이 되도록 숫자를 환산한다
+  const v = parseFloat($('p-time').value);
+  const ms = v > 0 ? clampMsVal(v * lastUnit) : 1000;
+  setFromMs(ms, +$('p-unit').value);
+  showTime(); saveTime();
+};
 $('p-new').onclick = () => {
   if (!wsOpen) return;
   play.pendingNew = true; play.closedByServer = false;
-  const msg = { type: 'new', color: $('p-color').value === 'r' ? 'random' : $('p-color').value, level: 3, style: $('p-style').value, movetimeMs: customMs(), engine: $('p-engine').value };
-  send(msg);
+  send({ type: 'new', color: $('p-color').value === 'r' ? 'random' : $('p-color').value, movetime: thinkMs(), engine: $('p-engine').value });
 };
 $('p-undo').onclick = () => send({ type: 'undo' });
 $('p-resign').onclick = () => send({ type: 'resign' });
@@ -315,6 +388,7 @@ function showTab(name) {
   $('view-play').classList.toggle('hidden', name !== 'play');
   $('view-live').classList.toggle('hidden', name !== 'live');
   const live = name === 'live';
+  if (live && LOCAL) send({ type: 'self_pace', ms: paceMs() });
   if (live !== wantLive) { wantLive = live; send({ type: live ? 'sub_live' : 'unsub_live' }); }
   history.replaceState(null, '', live ? '#live' : '#play');
   if (live) renderLive();
@@ -326,11 +400,35 @@ applyLang();
 connect();
 showTab(location.hash === '#live' ? 'live' : 'play');
 if (LOCAL) {
-  $('ver').textContent = 'Terranion 1.4 · NNUE · WASM';
+  $('ver').textContent = 'Lunaris 1.2.1 · NNUE · WASM';
   $('l-pgn').addEventListener('click', (e) => {
     e.preventDefault();
     const url = URL.createObjectURL(new Blob([backend.pgn()], { type: 'application/x-chess-pgn' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'terranion-selfplay.pgn'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'lunaris-selfplay.pgn'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   });
 } else fetch('./api/stats').then((r) => r.json()).then((j) => { if (j.engine) $('ver').textContent = j.engine + ' · NNUE'; }).catch(() => {});
+
+// 숨은 기물 테마: 로고를 5번 연속(각 클릭 1.5초 이내) 누르면 열리고/닫힌다. 백/흑을 따로 고른다.
+function applyPT() {
+  const ok = (id) => id === 'classic' || THEMES.some((x) => x.id === id);
+  if (!ok(ptSel.w)) ptSel.w = 'classic'; if (!ok(ptSel.b)) ptSel.b = 'classic';
+  $('themebar').classList.toggle('hidden', !ptUnlocked);
+  setPieceThemes(ptUnlocked ? ptSel.w : 'classic', ptUnlocked ? ptSel.b : 'classic');
+}
+function showPT() {
+  const opts = `<option value="classic">${t('classic')}</option>` + THEMES.map((x) => `<option value="${x.id}">${x.name[lang === 'ko' ? 0 : 1]}</option>`).join('');
+  $('pt-w').innerHTML = opts; $('pt-b').innerHTML = opts;
+  $('pt-w').value = ptSel.w; $('pt-b').value = ptSel.b;
+  applyPT();
+}
+for (const s of ['w', 'b']) $('pt-' + s).onchange = () => { ptSel[s] = $('pt-' + s).value; try { localStorage.setItem('lunaris-ptheme', JSON.stringify(ptSel)); } catch {} applyPT(); };
+let logoClicks = 0, logoTimer = null;
+$('logo').onclick = () => {
+  logoClicks++; clearTimeout(logoTimer); logoTimer = setTimeout(() => { logoClicks = 0; }, 1500);
+  if (logoClicks < 5) return;
+  logoClicks = 0; ptUnlocked = !ptUnlocked;
+  try { localStorage.setItem('lunaris-unlock', ptUnlocked ? '1' : '0'); } catch {}
+  applyPT(); showToast(t(ptUnlocked ? 'unlocked' : 'relocked')); setTimeout(() => showToast(''), 2200);
+};
+showPT();
