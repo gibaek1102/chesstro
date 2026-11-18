@@ -2,11 +2,11 @@
 export const MOVE_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 
 export class LocalEngine {
-  constructor({ hash = 16 } = {}) { this.hash = hash; this.worker = null; this.dead = false; this.waiters = new Set(); }
+  constructor({ hash = 16, engine = 'terranion' } = {}) { this.hash = hash; this.engine = engine; this.worker = null; this.dead = false; this.waiters = new Set(); }
 
   async start() {
     const base = new URL('./', import.meta.url).href;
-    this.worker = new Worker(new URL('./engine-worker.js', import.meta.url));
+    this.worker = new Worker(new URL('./engine-worker.js?v=3', import.meta.url));
     this.worker.onmessage = (e) => {
       const d = e.data;
       if (d.line !== undefined) for (const w of [...this.waiters]) w.onLine(d.line);
@@ -15,7 +15,7 @@ export class LocalEngine {
     };
     this.worker.onerror = (e) => this._die(new Error(e.message || 'worker error'));
     const ready = this.waitLine((l) => l === '\u0000ready', 30000);
-    this.worker.postMessage({ init: true, base, hash: this.hash });
+    this.worker.postMessage({ init: true, base, hash: this.hash, engine: this.engine });
     await ready;
     this.send('uci');
     await this.waitLine((l) => l === 'uciok', 5000);

@@ -1,7 +1,7 @@
 // 서버 없이 브라우저 안에서 동작하는 백엔드. server/play.js + server/selfplay.js 의 브라우저 버전이다.
 // app.js 와는 WebSocket 때와 같은 메시지(state / live / stats ...)로 대화한다.
 import { Chess } from './vendor/chess.js';
-import { LocalEngine, MOVE_RE } from './local-engine.js?v=2';
+import { LocalEngine, MOVE_RE } from './local-engine.js?v=3';
 
 const LEVELS = { 1: 'nodes 30', 2: 'nodes 300', 3: 'nodes 3000', 4: 'movetime 300', 5: 'movetime 1000', 6: 'movetime 3000' };
 const SELF_MOVETIME = 120, MAX_PLIES = 400, RECENT_KEEP = 50, STORE = 'terranion-local-stats-v1';
@@ -11,7 +11,7 @@ const fmtEval = (e) => (e.mate !== null ? `#${e.mate}` : ((e.cp >= 0 ? '+' : '')
 
 export function createLocalBackend(emit) {
   // ------------------------ 사람 대국 ------------------------
-  const play = { engine: null, game: new Chess(), humanColor: 'w', level: 3, busy: false, over: null, epoch: 0, lastEval: null };
+  const play = { engine: null, engineId: 'terranion', game: new Chess(), humanColor: 'w', level: 3, busy: false, over: null, epoch: 0, lastEval: null };
 
   const state = () => ({
     type: 'state', moves: play.game.history({ verbose: true }).map(uciOf), fen: play.game.fen(),
@@ -19,8 +19,9 @@ export function createLocalBackend(emit) {
   });
 
   async function ensureEngine() {
-    if (play.engine && !play.engine.dead) return true;
-    try { play.engine = await new LocalEngine({ hash: 16 }).start(); return true; } catch { play.engine = null; return false; }
+    if (play.engine && !play.engine.dead && play.engine.engine === play.engineId) return true;
+    play.engine?.kill(); play.engine = null;
+    try { play.engine = await new LocalEngine({ hash: 16, engine: play.engineId }).start(); return true; } catch { play.engine = null; return false; }
   }
 
   function checkOver() {
@@ -61,15 +62,16 @@ export function createLocalBackend(emit) {
     }
   }
 
-  async function newGame({ color, level, style, movetimeMs }) {
+  async function newGame({ color, level, style, movetimeMs, engine }) {
     play.epoch++;
+    play.engineId = engine === 'lunaris' ? 'lunaris' : 'terranion';
     play.level = Number.isInteger(level) && LEVELS[level] ? level : 3;
     play.go = Number.isInteger(movetimeMs) && movetimeMs >= 50 ? `movetime ${movetimeMs}` : LEVELS[play.level];
     play.humanColor = color === 'b' ? 'b' : color === 'w' ? 'w' : Math.random() < 0.5 ? 'w' : 'b';
     play.game = new Chess(); play.over = null; play.lastEval = null; play.busy = false;
     if (play.engine) { play.engine.kill(); play.engine = null; }   // 탐색 중일 수 있는 워커를 확실히 정리
     if (!(await ensureEngine())) { emit({ type: 'error', code: 'engine_failed' }); return emit(state()); }
-    play.engine.send(`setoption name Style value ${{ a: 'Aggressive', d: 'Defensive' }[style] || 'Balanced'}`);
+    if (play.engineId === 'terranion') play.engine.send(`setoption name Style value ${{ a: 'Aggressive', d: 'Defensive' }[style] || 'Balanced'}`);
     play.engine.newGame();
     emit(state());
     if (play.game.turn() !== play.humanColor) await engineMove();
